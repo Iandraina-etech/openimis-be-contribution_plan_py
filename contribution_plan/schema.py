@@ -1,7 +1,6 @@
 import graphene
 import graphene_django_optimizer as gql_optimizer
 
-from insuree.service import getMatchingContribution
 from django.db.models import Q
 
 from core.schema import signal_mutation_module_validate
@@ -24,7 +23,7 @@ from contribution_plan.models import ContributionPlanBundle, ContributionPlan, \
 from core.schema import OrderedDjangoFilterConnectionField
 from .models import ContributionPlanMutation, ContributionPlanBundleMutation
 from .apps import ContributionPlanConfig
-
+from .services import getMatchingContribution
 
 class Query(graphene.ObjectType):
     contribution_plan = OrderedDjangoFilterConnectionField(
@@ -115,12 +114,15 @@ class Query(graphene.ObjectType):
             query = model.history.filter(*filters).all().as_instances()
         else:
             query = model.objects.filter(*filters).all()
-        all=gql_optimizer.query(query, info)
+        all_plans = gql_optimizer.query(query, info)
+
+        # service = FamilyService(info.context.user)
         plan = getMatchingContribution(family_uuid=kwargs['family_uuid'])
         if not plan:
             return ContributionPlan.objects.none()
 
-        return all.filter(uuid=plan.uuid)
+        return all_plans.filter(uuid=plan.uuid)
+
 
 
     def resolve_contribution_plan_bundle(self, info, **kwargs):

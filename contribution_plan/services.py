@@ -5,7 +5,8 @@ from django.contrib.auth.models import AnonymousUser
 from django.forms.models import model_to_dict
 from contribution_plan.models import ContributionPlan as ContributionPlanModel, ContributionPlanBundle as ContributionPlanBundleModel, \
     ContributionPlanBundleDetails as ContributionPlanBundleDetailsModel, PaymentPlan as PaymentPlanModel
-
+# from insuree.service import FamilyService
+from insuree.models import Family, Insuree,FamilySizeScores,ScoreContributionMapping
 
 def check_authentication(function):
     def wrapper(self, *args, **kwargs):
@@ -20,6 +21,34 @@ def check_authentication(function):
             return result
     return wrapper
 
+
+
+def calculate_family_size_score( family):
+    insuree_size = Insuree.objects.filter(
+        family=family,
+        validity_to__isnull=True
+    ).count()
+    score = FamilySizeScores.objects.filter(
+        lower_born__lte=insuree_size,
+        higher_born__gte=insuree_size
+    ).first()
+    return score.score
+
+def calculate_family_score(family):
+    housing_score=family.head_insuree.housing_type.score
+    family_size_score=calculate_family_size_score(family)
+    family_income_score=family.head_insuree.income_level.score
+
+    return (family_income_score*0.5)+(family_size_score*0.25)+(housing_score*0.25)
+
+def getMatchingContribution(family_uuid):
+    family=Family.objects.all().filter(uuid=family_uuid,validity_to__isnull=True).first()
+    score=calculate_family_score(family)
+    match_contr = ScoreContributionMapping.objects.filter(
+        lower_born__lte=score,
+        higher_born__gte=score
+    ).first()
+    return match_contr.contribution_plan
 
 class ContributionPlanService(object):
 
