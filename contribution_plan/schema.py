@@ -1,6 +1,7 @@
 import graphene
 import graphene_django_optimizer as gql_optimizer
 
+from insuree.service import getMatchingContribution
 from django.db.models import Q
 
 from core.schema import signal_mutation_module_validate
@@ -33,6 +34,16 @@ class Query(graphene.ObjectType):
         dateValidTo__Lte=graphene.DateTime(),
         applyDefaultValidityFilter=graphene.Boolean(),
         showHistory=graphene.Boolean()
+    )
+
+    contribution_plan_family = OrderedDjangoFilterConnectionField(
+        ContributionPlanGQLType,
+        orderBy=graphene.List(of_type=graphene.String),
+        dateValidFrom__Gte=graphene.DateTime(),
+        dateValidTo__Lte=graphene.DateTime(),
+        applyDefaultValidityFilter=graphene.Boolean(),
+        showHistory=graphene.Boolean(),
+        family_uuid=graphene.UUID(required=True)
     )
 
     contribution_plan_bundle = OrderedDjangoFilterConnectionField(
@@ -93,6 +104,24 @@ class Query(graphene.ObjectType):
         else:
             query = model.objects.filter(*filters).all()
         return gql_optimizer.query(query, info)
+    
+    def resolve_contribution_plan_family(self, info, **kwargs):
+        if not info.context.user.has_perms(ContributionPlanConfig.gql_query_contributionplan_perms):
+            raise PermissionError("Unauthorized")
+
+        filters = append_validity_filter(**kwargs)
+        model = ContributionPlan
+        if kwargs.get('showHistory', False):
+            query = model.history.filter(*filters).all().as_instances()
+        else:
+            query = model.objects.filter(*filters).all()
+        all=gql_optimizer.query(query, info)
+        plan = getMatchingContribution(family_uuid=kwargs['family_uuid'])
+        if not plan:
+            return ContributionPlan.objects.none()
+
+        return all.filter(uuid=plan.uuid)
+
 
     def resolve_contribution_plan_bundle(self, info, **kwargs):
         if not info.context.user.has_perms(ContributionPlanConfig.gql_query_contributionplanbundle_perms):
