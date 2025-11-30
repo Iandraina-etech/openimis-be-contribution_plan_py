@@ -23,7 +23,7 @@ from contribution_plan.models import ContributionPlanBundle, ContributionPlan, \
 from core.schema import OrderedDjangoFilterConnectionField
 from .models import ContributionPlanMutation, ContributionPlanBundleMutation
 from .apps import ContributionPlanConfig
-
+from .services import getMatchingContribution
 
 class Query(graphene.ObjectType):
     contribution_plan = OrderedDjangoFilterConnectionField(
@@ -33,6 +33,16 @@ class Query(graphene.ObjectType):
         dateValidTo__Lte=graphene.DateTime(),
         applyDefaultValidityFilter=graphene.Boolean(),
         showHistory=graphene.Boolean()
+    )
+
+    contribution_plan_family = OrderedDjangoFilterConnectionField(
+        ContributionPlanGQLType,
+        orderBy=graphene.List(of_type=graphene.String),
+        dateValidFrom__Gte=graphene.DateTime(),
+        dateValidTo__Lte=graphene.DateTime(),
+        applyDefaultValidityFilter=graphene.Boolean(),
+        showHistory=graphene.Boolean(),
+        family_uuid=graphene.UUID(required=True)
     )
 
     contribution_plan_bundle = OrderedDjangoFilterConnectionField(
@@ -93,6 +103,27 @@ class Query(graphene.ObjectType):
         else:
             query = model.objects.filter(*filters).all()
         return gql_optimizer.query(query, info)
+    
+    def resolve_contribution_plan_family(self, info, **kwargs):
+        if not info.context.user.has_perms(ContributionPlanConfig.gql_query_contributionplan_perms):
+            raise PermissionError("Unauthorized")
+
+        filters = append_validity_filter(**kwargs)
+        model = ContributionPlan
+        if kwargs.get('showHistory', False):
+            query = model.history.filter(*filters).all().as_instances()
+        else:
+            query = model.objects.filter(*filters).all()
+        all_plans = gql_optimizer.query(query, info)
+
+        # service = FamilyService(info.context.user)
+        plan = getMatchingContribution(family_uuid=kwargs['family_uuid'])
+        if not plan:
+            return ContributionPlan.objects.none()
+
+        return all_plans.filter(uuid=plan.uuid)
+
+
 
     def resolve_contribution_plan_bundle(self, info, **kwargs):
         if not info.context.user.has_perms(ContributionPlanConfig.gql_query_contributionplanbundle_perms):
