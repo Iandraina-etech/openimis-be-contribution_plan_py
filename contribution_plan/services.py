@@ -37,7 +37,7 @@ def calculate_family_size_score( family):
 def calculate_family_score(family):
     housing_score=family.head_insuree.housing_type.score
     family_size_score=calculate_family_size_score(family)
-    family_income_score=family.head_insuree.income_level.score
+    family_income_score=family.income_level.score
 
     return (family_income_score*0.5)+(family_size_score*0.25)+(housing_score*0.25)
 
