@@ -32,18 +32,10 @@ class Query(graphene.ObjectType):
         dateValidFrom__Gte=graphene.DateTime(),
         dateValidTo__Lte=graphene.DateTime(),
         applyDefaultValidityFilter=graphene.Boolean(),
+        familyUuid=graphene.String(required=False),
         showHistory=graphene.Boolean()
     )
 
-    contribution_plan_family = OrderedDjangoFilterConnectionField(
-        ContributionPlanGQLType,
-        orderBy=graphene.List(of_type=graphene.String),
-        dateValidFrom__Gte=graphene.DateTime(),
-        dateValidTo__Lte=graphene.DateTime(),
-        applyDefaultValidityFilter=graphene.Boolean(),
-        showHistory=graphene.Boolean(),
-        family_uuid=graphene.UUID(required=True)
-    )
 
     contribution_plan_bundle = OrderedDjangoFilterConnectionField(
         ContributionPlanBundleGQLType,
@@ -94,34 +86,30 @@ class Query(graphene.ObjectType):
 
     def resolve_contribution_plan(self, info, **kwargs):
         if not info.context.user.has_perms(ContributionPlanConfig.gql_query_contributionplan_perms):
-           raise PermissionError("Unauthorized")
-
-        filters = append_validity_filter(**kwargs)
-        model = ContributionPlan
-        if kwargs.get('showHistory', False):
-            query = model.history.filter(*filters).all().as_instances()
-        else:
-            query = model.objects.filter(*filters).all()
-        return gql_optimizer.query(query, info)
-    
-    def resolve_contribution_plan_family(self, info, **kwargs):
-        if not info.context.user.has_perms(ContributionPlanConfig.gql_query_contributionplan_perms):
             raise PermissionError("Unauthorized")
-
+        
         filters = append_validity_filter(**kwargs)
         model = ContributionPlan
+
         if kwargs.get('showHistory', False):
             query = model.history.filter(*filters).all().as_instances()
         else:
             query = model.objects.filter(*filters).all()
+            
         all_plans = gql_optimizer.query(query, info)
 
-        # service = FamilyService(info.context.user)
-        plan = getMatchingContribution(family_uuid=kwargs['family_uuid'])
+        family_uuid = kwargs.get("familyUuid", None)
+
+        if not family_uuid:
+            return all_plans
+
+        plan = getMatchingContribution(family_uuid=family_uuid)
+
         if not plan:
             return ContributionPlan.objects.none()
 
         return all_plans.filter(uuid=plan.uuid)
+
 
 
 
