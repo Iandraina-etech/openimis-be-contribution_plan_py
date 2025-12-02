@@ -45,8 +45,8 @@ def getMatchingContribution(family_uuid):
     family=Family.objects.all().filter(uuid=family_uuid,validity_to__isnull=True).first()
     score=calculate_family_score(family)
     match_contr = ScoreContributionMapping.objects.filter(
-        lower_born__lte=score,   # lower_born <= score
-        higher_born__gt=score    # higher_born > score (strictement)
+        lower_born__lte=score,   
+        higher_born__gte=score    
     ).first()
     return match_contr.contribution_plan
 
