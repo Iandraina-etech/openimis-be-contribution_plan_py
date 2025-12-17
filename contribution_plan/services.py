@@ -6,7 +6,7 @@ from django.forms.models import model_to_dict
 from contribution_plan.models import ContributionPlan as ContributionPlanModel, ContributionPlanBundle as ContributionPlanBundleModel, \
     ContributionPlanBundleDetails as ContributionPlanBundleDetailsModel, PaymentPlan as PaymentPlanModel
 # from insuree.service import FamilyService
-from insuree.models import Family, Insuree,FamilySizeScores,ScoreContributionMapping
+from insuree.models import Family, Insuree,FamilySizeScores,ScoreContributionMapping,FamilyIncomeScores
 
 def check_authentication(function):
     def wrapper(self, *args, **kwargs):
@@ -34,10 +34,28 @@ def calculate_family_size_score( family):
     ).first()
     return score.score
 
+def calculate_family_income_score(family):
+    insurees = Insuree.objects.all().filter(
+        family=family,
+        validity_to__isnull=True
+    )
+    sum_income=0
+    for insuree in insurees:
+        if insuree.fix_income:
+            sum_income+=insuree.fix_income
+    score = FamilyIncomeScores.objects.filter(
+        lower_born__lte=sum_income,
+        higher_born__gte=sum_income
+    ).first()
+    print(f"sum_income: {sum_income}, score: {score.score}")
+    return score.score
+    
+
 def calculate_family_score(family):
     housing_score=family.head_insuree.housing_type.score
     family_size_score=calculate_family_size_score(family)
-    family_income_score=family.income_level.score
+    family_income_score=calculate_family_income_score(family)
+    print(f"family_income_score: {family_income_score}, family_size_score: {family_size_score}, housing_score: {housing_score}")
 
     return (family_income_score*0.5)+(family_size_score*0.25)+(housing_score*0.25)
 
